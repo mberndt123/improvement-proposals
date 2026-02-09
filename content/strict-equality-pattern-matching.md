@@ -204,7 +204,12 @@ This change creates no new compatibility issues and improves the compatibility o
    to test for equality with these – the only thing that is equal to a singleton is the
    singleton itself, and hence we could in principle use reference equality for these cases
    (the fact that we don't is a mere concession to backward compatibility).
- 
+## Feedback
+
+- https://contributors.scala-lang.org/t/feedback-thread-for-strictequalitypatternmatching-new-in-3-8/7379
+- https://users.scala-lang.org/t/your-experience-with-strictequalitypatternmatching-new-in-3-8/12208
+- https://contributors.scala-lang.org/t/pre-sip-relaxed-strictequality-for-and/7356
+
 ## Related Work
  - https://contributors.scala-lang.org/t/pre-sip-better-strictequality-support-in-pattern-matching/6781
  - https://contributors.scala-lang.org/t/how-to-improve-strictequality/6722
