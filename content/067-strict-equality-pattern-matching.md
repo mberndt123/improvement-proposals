@@ -1,7 +1,11 @@
 ---
 layout: sip
-permalink: /sips/:title.html
-stage: design
+number: 67
+permalink: /sips/:number.html
+redirect_from:
+  - /sips/:number
+  - /sips/:title.html
+stage: implementation
 status: under-review
 presip-thread: https://contributors.scala-lang.org/t/pre-sip-better-strictequality-support-in-pattern-matching/6781
 title: SIP-67 - Strict-Equality pattern matching
