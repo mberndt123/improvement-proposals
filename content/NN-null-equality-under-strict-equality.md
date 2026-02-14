@@ -119,7 +119,7 @@ The implementation should be a small, localized change in the compiler's equalit
 
 ## Alternatives
 
-### Alternative 1: Provide `CanEqual[A | Null, Null]` in the standard library
+### Alternative 1: Provide `CanEqual[Any, Null]` in the standard library
 
 The standard library could ship a built-in:
 
