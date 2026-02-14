@@ -44,18 +44,26 @@ This fails to compile because strict equality requires a `CanEqual[Int | Null, N
 
 ### Workaround 1: Add a `CanEqual` instance
 
-A user might try:
+A user might try adding an instance for the specific type they need:
 
 ```scala
 given CanEqual[Int | Null, Null] = CanEqual.derived
 ```
 
-However, `CanEqual` is contravariant in its first type parameter, so `CanEqual[Int | Null, Null]` is equivalent to `CanEqual[Any, Null]`. This effectively allows `x == null` for *any* type, completely defeating the purpose of strict equality for null checks:
+However, `CanEqual` is contravariant in both type parameters. This means `CanEqual[Int | Null, Null]` is a subtype of `CanEqual[Int, Null]` (because `Int <: Int | Null` and contravariance flips the relationship). As a result, providing this instance also allows null checks on the non-nullable type `Int`:
 
 ```scala
 val x: Int = 42
-if x == null then ???  // Would compile — but Int is never null!
+if x == null then ???  // Compiles — but Int is never null!
 ```
+
+This is already problematic for a single type, but the real issue is that to solve the general case, a user would need to provide a polymorphic instance:
+
+```scala
+given [A]: CanEqual[A | Null, Null] = CanEqual.derived
+```
+
+Since `A | Null` for an unconstrained `A` is equivalent to `Any`, this is equivalent to `CanEqual[Any, Null]`, which allows null checks for *every* type, completely defeating the purpose of strict equality for null checks.
 
 ### Workaround 2: Use `eq`
 
@@ -138,12 +146,18 @@ The implementation should be localized to the type-checking phase that handles e
 
 ## Alternatives
 
-### Alternative 1: Add `CanEqual[A | Null, Null]` to the standard library
+### Alternative 1: Add a polymorphic `CanEqual[A | Null, Null]` to the standard library
 
-One approach is to provide a built-in `given CanEqual[Null, Null] = CanEqual.derived` and rely on the contravariance of `CanEqual` to allow all null comparisons. However, as discussed in the Motivation section, this is equivalent to `CanEqual[Any, Null]`, which allows null checks even for non-nullable types, defeating the purpose.
+One approach is to provide a built-in polymorphic instance:
+
+```scala
+given [A]: CanEqual[A | Null, Null] = CanEqual.derived
+```
+
+However, for an unconstrained type parameter `A`, `A | Null` is equivalent to `Any`, making this equivalent to `CanEqual[Any, Null]`. This allows null checks even for non-nullable types, defeating the purpose. Even a monomorphic instance like `CanEqual[Int | Null, Null]` is problematic because contravariance means it also satisfies `CanEqual[Int, Null]`, allowing `42 == null`.
 
 **Pros**: Simple, no compiler changes needed.
-**Cons**: Too permissive. Allows `42 == null` under strict equality.
+**Cons**: Too permissive. Cannot prevent null checks on non-nullable types.
 
 ### Alternative 2: Use a type class specifically for null checks
 
