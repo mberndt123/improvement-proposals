@@ -7,7 +7,7 @@ redirect_from:
   - /sips/:number
 stage: pre-sip
 status: under-review
-presip-thread: https://contributors.scala-lang.org/t/TODO
+presip-thread: https://contributors.scala-lang.org/t/strictequality-with-explicit-nulls-do-not-work-well-together/7050
 title: Null equality checks under strict equality
 ---
 
@@ -69,7 +69,7 @@ There is no ergonomic way to null-check a nullable value when both flags are ena
 
 ### High-level overview
 
-When the compiler encounters `expr == null`, `expr != null`, or `case null` under strict equality, it first looks for a `CanEqual` instance as usual. If none is found, it falls back to checking `Null <:< A` (where `A` is the type of `expr` or the scrutinee). If that holds, the comparison/pattern is allowed; otherwise it is rejected.
+When the compiler encounters `expr == null`, `expr != null`, or `case null`, it first tries to find a `CanEqual` instance as usual. If none is found **and** one side is `null`, it falls back to checking `Null <:< A`:
 
 ```scala
 val x: Int | Null = ???
@@ -84,57 +84,58 @@ z match
   case s    => s
 ```
 
-Flow typing continues to narrow types after the check as before.
+Flow typing is unaffected — after a null check, the compiler still narrows the type.
 
 ### Specification
 
-Under strict equality today, `a == b` requires `CanEqual[A, B]` or `CanEqual[B, A]`. This proposal adds a fallback when one operand is `null` (or a `case null` pattern is used):
+Currently, strict equality rejects `a == b` when no `CanEqual[A, B]` or `CanEqual[B, A]` instance exists.
 
-1. Attempt `CanEqual` resolution as today.
-2. If that fails and one side has type `Null`, check `Null <:< A` (where `A` is the other operand's type, or the scrutinee type for `case null`).
-3. Accept if the subtype check passes; reject otherwise.
+This proposal adds a fallback for null comparisons:
+
+1. Attempt `CanEqual` resolution as usual.
+2. If resolution fails **and** one operand has type `Null` (or a `case null` pattern is involved):
+   - Check `Null <:< A` where `A` is the type of the other operand (or the scrutinee).
+   - If the subtype check succeeds, allow the comparison.
+   - If it fails, report an error.
+
+This preserves all existing `CanEqual`-based behavior. User-defined instances still take priority.
 
 ### Compatibility
 
-- **Binary / TASTy**: Purely compile-time; no bytecode or TASTy changes.
-- **Source**: Strictly relaxes restrictions — previously rejected code may now compile. No existing valid program changes meaning. Existing `CanEqual` instances are still found first.
+**Binary / TASTy**: No changes to code generation or TASTy format. The change is purely in the type checker.
+
+**Source**: Strictly more permissive — code that compiled before continues to compile. Code that was previously rejected (null checks on nullable types under strict equality) now compiles. Code that *should* be rejected (null checks on non-nullable types) remains rejected.
 
 ### Feature Interactions
 
-- **Flow typing**: Complementary — this proposal ensures the null check compiles; flow typing then narrows the type.
-- **Existing `CanEqual` instances**: Still resolved first; the `Null <:< A` check is only a fallback.
-- **`eq` / `ne`**: Unchanged.
-- **`derives CanEqual`**: Unchanged.
+- **Flow typing** (`-Yexplicit-nulls`): Works unchanged. The null check enables type narrowing as before.
+- **`CanEqual` instances**: User-provided instances take priority. The fallback only activates when no instance is found.
+- **`-Yexplicit-nulls` disabled**: When explicit nulls is off, `Null <: AnyRef` holds, so the subtype check passes for all reference types. This matches the existing (pre-explicit-nulls) behavior.
+- **Strict equality disabled**: No change; `== null` is always allowed without strict equality.
 
 ### Other concerns
 
-Implementation is localized to the equality type-checking phase: add a fallback branch when `CanEqual` resolution fails and one operand is `null`.
-
-### Open questions
-
-1. Should the error message for rejected null comparisons be specialized (e.g., "Cannot compare non-nullable type Int to null") or reuse the existing format?
+The implementation should be a small, localized change in the compiler's equality checking logic (likely in `TypeComparer` or the `checkCanEqual` method in `Typer`).
 
 ## Alternatives
 
-### Alternative 1: Stdlib `CanEqual[A | Null, Null]`
+### Alternative 1: Provide `CanEqual[A | Null, Null]` in the standard library
 
-A polymorphic `given [A]: CanEqual[A | Null, Null]` is equivalent to `CanEqual[Any, Null]` — too permissive. Monomorphic instances leak via contravariance.
+The standard library could ship a built-in:
 
-### Alternative 2: New `NullCheckable[A]` type class
+```scala
+given [A]: CanEqual[A | Null, Null] = CanEqual.derived
+```
 
-More principled but adds stdlib complexity, and `==` integration still requires compiler changes.
-
-### Alternative 3: Do nothing
-
-Users can use `x.asInstanceOf[AnyRef].eq(null)` — unsafe and unergonomic.
+However, due to contravariance this is equivalent to `CanEqual[Any, Null]`, which allows `42 == null` — exactly the kind of comparison strict equality should prevent.
 
 ## Related work
 
-- [Explicit Nulls](https://docs.scala-lang.org/scala3/reference/experimental/explicit-nulls.html)
-- [Multiversal Equality](https://docs.scala-lang.org/scala3/reference/contextual/multiversal-equality.html)
-- Kotlin and Swift allow null/nil checks on nullable/optional types without additional ceremony.
-- Pre-SIP discussion: TODO
+- [Pre-SIP discussion](https://contributors.scala-lang.org/t/strictequality-with-explicit-nulls-do-not-work-well-together/7050)
+- [Scala 3 Reference: Explicit Nulls](https://docs.scala-lang.org/scala3/reference/experimental/explicit-nulls.html)
+- [Scala 3 Reference: Multiversal Equality](https://docs.scala-lang.org/scala3/reference/contextual/multiversal-equality.html)
+- Kotlin uses a similar approach: its type system tracks nullability (`T?`), and `== null` checks are always allowed on nullable types without special opt-in.
 
 ## FAQ
 
-N/A so far.
+This section will be updated as discussions progress.
