@@ -21,7 +21,7 @@ title: Null equality checks under strict equality
 
 ## Summary
 
-When both `-language:strictEquality` and `-Yexplicit-nulls` are enabled, it is currently impossible to compare a value of type `A | Null` against `null` using either `==` (because there is no `CanEqual[A | Null, Null]` instance) or `eq` (because `A | Null` is not necessarily an `AnyRef` subtype). This proposal introduces special handling for `== null` and `!= null` comparisons under strict equality: instead of requiring a `CanEqual[A, Null]` instance, the compiler should require `Null <:< A`, i.e. that `Null` is a subtype of the compared type. This allows null checks for nullable types like `Int | Null` while correctly rejecting them for non-nullable types like `Int`.
+When both `-language:strictEquality` and `-Yexplicit-nulls` are enabled, it is currently impossible to compare a value of type `A | Null` against `null` using either `==` (because there is no `CanEqual[A | Null, Null]` instance) or `eq` (because `A | Null` is not necessarily an `AnyRef` subtype). Similarly, `case null` clauses in pattern matching are rejected under these combined flags. This proposal introduces special handling for null comparisons and null patterns under strict equality: when no `CanEqual` instance is found and one side of the comparison is `null` (or a `case null` pattern is used), the compiler falls back to checking `Null <:< A` instead of rejecting the code outright. This allows null checks for nullable types like `Int | Null` while correctly rejecting them for non-nullable types like `Int`.
 
 ## Motivation
 
@@ -41,6 +41,16 @@ def process(x: Int | Null): Int =
 ```
 
 This fails to compile because strict equality requires a `CanEqual[Int | Null, Null]` instance, and none exists.
+
+The same problem affects pattern matching with `case null`:
+
+```scala
+//> using options -language:strictEquality -Yexplicit-nulls
+
+def process(x: String | Null): String = x match
+  case null => ""       // ERROR under strict equality
+  case s    => s
+```
 
 ### Workaround 1: Add a `CanEqual` instance
 
@@ -79,13 +89,13 @@ But `eq` is defined on `AnyRef`, and `Int | Null` is not an `AnyRef` subtype (si
 
 Users who want the combined safety of explicit nulls and strict equality are left with no ergonomic way to perform the most fundamental null check. This is a significant gap, especially since `== null` is already treated specially under explicit nulls for flow typing purposes.
 
-The goal of this proposal is to allow `== null` checks for nullable types while preserving the strictness of multiversal equality for all other comparisons. Out of scope is any change to how `== null` behaves without strict equality, or any change to the `eq` method.
+The goal of this proposal is to allow `== null` checks and `case null` patterns for nullable types while preserving the strictness of multiversal equality for all other comparisons. Out of scope is any change to how `== null` behaves without strict equality, or any change to the `eq` method.
 
 ## Proposed solution
 
 ### High-level overview
 
-When strict equality is enabled and the compiler encounters a comparison of the form `expr == null` or `expr != null`, it should not require a `CanEqual` instance. Instead, it should check whether `Null <:< A` holds, where `A` is the type of `expr`.
+When strict equality is enabled and the compiler encounters a comparison of the form `expr == null` or `expr != null`, or a `case null` clause in a pattern match, it should first attempt to find a `CanEqual` instance as usual. If no instance is found, the compiler falls back to checking whether `Null <:< A` holds, where `A` is the type of `expr` (or the scrutinee type for pattern matching).
 
 This means:
 
@@ -95,6 +105,11 @@ if x == null then 0 else x + 1   // OK: Null <:< (Int | Null)
 
 val y: Int = 42
 if y == null then 0 else y + 1   // ERROR: Null is not a subtype of Int
+
+val z: String | Null = ???
+z match
+  case null => ""                 // OK: Null <:< (String | Null)
+  case s    => s
 ```
 
 This aligns with the semantics of explicit nulls: if a type admits `null` as a value, you should be able to check for it. If it doesn't, the check is rejected — which is exactly what strict equality should enforce.
@@ -103,46 +118,45 @@ Flow typing continues to work as before. After `x == null` is checked, the compi
 
 ### Specification
 
-Currently, when strict equality is enabled, the compiler checks for a comparison `a == b` that a `CanEqual[A, B]` or `CanEqual[B, A]` instance exists (where `A` and `B` are the types of `a` and `b` respectively).
+Currently, when strict equality is enabled, the compiler checks for a comparison `a == b` that a `CanEqual[A, B]` or `CanEqual[B, A]` instance exists (where `A` and `B` are the types of `a` and `b` respectively). If no such instance is found, the comparison is rejected.
 
-This proposal adds a special case: when one side of the comparison is the literal `null` (i.e. has type `Null`), the compiler skips the `CanEqual` lookup and instead checks:
+This proposal modifies the fallback behavior when one side of the comparison is `null` (i.e. has type `Null`), or when a `case null` pattern is used in a match expression:
 
-- For `a == null` or `a != null`: verify that `Null <:< A` holds.
-- For `null == a` or `null != a`: verify that `Null <:< A` holds.
+1. The compiler first attempts to resolve a `CanEqual[A, Null]` or `CanEqual[Null, A]` instance as it does today.
+2. If no `CanEqual` instance is found, and one operand has type `Null`, the compiler performs a subtype check: verify that `Null <:< A` holds (where `A` is the type of the other operand).
+3. If the subtype check succeeds, the comparison is allowed.
+4. If the subtype check also fails, a compilation error is reported.
 
-If the subtype check succeeds, the comparison is allowed. If it fails, a compilation error is reported, e.g.:  
-```
-Values of types Int and Null cannot be compared with == or !=
-because Null is not a subtype of Int
-```
+For pattern matching, the same logic applies to `case null` clauses:
 
-This check should be performed only when both strict equality and explicit nulls are enabled. When explicit nulls is not enabled, `Null` is a subtype of all reference types by default, so the check would always pass and is not useful.
+1. The compiler first attempts to resolve a `CanEqual` instance between the scrutinee type and `Null`.
+2. If no instance is found, the compiler checks whether `Null <:< S` holds, where `S` is the type of the scrutinee.
+3. If the subtype check succeeds, the `case null` clause is allowed.
+4. If it fails, the clause is rejected.
 
-When only strict equality is enabled (without explicit nulls), the existing behavior is preserved: `CanEqual` instances govern equality checks as before.
+This preserves full backward compatibility: any code that already compiles via a `CanEqual` instance continues to use that path. The `Null <:< A` check is only a fallback for cases where no instance exists.
 
 ### Compatibility
 
 This change is fully backward compatible in the following sense:
 
-- **Binary and TASTy compatibility**: This is a purely compile-time check. No changes to generated bytecode or TASTy format are required. The runtime semantics of `==` are unchanged.
-- **Source compatibility**: Code that currently compiles will continue to compile. The change only *relaxes* a restriction: comparisons that were previously rejected (no `CanEqual` instance) will now be accepted if `Null <:< A` holds. No currently valid program changes its meaning.
+- **Binary and TASTy compatibility**: This is a purely compile-time check. No changes to generated bytecode or TASTy format are required. The runtime semantics of `==` and pattern matching are unchanged.
+- **Source compatibility**: Code that currently compiles will continue to compile unchanged. The `CanEqual` lookup is performed first, so existing instances are still used. The change only *relaxes* a restriction: comparisons and patterns that were previously rejected (no `CanEqual` instance) will now be accepted if `Null <:< A` holds. No currently valid program changes its meaning.
 
 ### Feature Interactions
 
-- **Flow typing under explicit nulls**: This proposal complements flow typing. After `if x == null`, the compiler already narrows the type. This proposal simply ensures the comparison is allowed in the first place under strict equality.
-- **`CanEqual` derivation**: Users who have manually added `CanEqual[..., Null]` instances as workarounds can remove them. Their code will continue to compile because the new subtype check will accept the comparison.
+- **Flow typing under explicit nulls**: This proposal complements flow typing. After `if x == null`, the compiler already narrows the type. This proposal simply ensures the comparison is allowed in the first place under strict equality. Similarly, after `case null =>`, the scrutinee type is narrowed in subsequent cases.
+- **`CanEqual` derivation**: Users who have manually added `CanEqual[..., Null]` instances as workarounds can remove them, but their code will continue to work if they don't — the `CanEqual` lookup happens first, so existing instances are still found and used.
 - **`eq` / `ne`**: This proposal does not change `eq`/`ne`. Those remain methods on `AnyRef` and are not affected.
-- **`derives CanEqual`**: The proposed change does not affect how `CanEqual` is derived for user-defined types. It only adds a special case for null literal comparisons.
+- **`derives CanEqual`**: The proposed change does not affect how `CanEqual` is derived for user-defined types. It only adds a fallback for null comparisons and null patterns.
 
 ### Other concerns
 
-The implementation should be localized to the type-checking phase that handles equality comparisons under strict equality. It adds a single branch: when one operand is `null`, check `Null <:< A` instead of looking up `CanEqual`.
+The implementation should be localized to the type-checking phase that handles equality comparisons and pattern match exhaustivity under strict equality. It adds a fallback branch: when no `CanEqual` instance is found and one operand is `null` (or a `case null` pattern is encountered), check `Null <:< A` before reporting an error.
 
 ### Open questions
 
-1. Should the `Null <:< A` check also apply when only strict equality is enabled (without explicit nulls)? Without explicit nulls, `Null <: AnyRef`, so the check would allow `refValue == null` but reject `intValue == null`. This could be useful but changes existing strict-equality-only behavior.
-
-2. Should the error message for rejected null comparisons be specialized (e.g., "Cannot compare non-nullable type Int to null") or reuse the existing strict equality error format?
+1. Should the error message for rejected null comparisons be specialized (e.g., "Cannot compare non-nullable type Int to null") or reuse the existing strict equality error format?
 
 ## Alternatives
 
