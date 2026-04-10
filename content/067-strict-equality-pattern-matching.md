@@ -22,8 +22,9 @@ title: SIP-67 - Strict-Equality pattern matching
 | Oct 4th 2024  | Add paragraph about using a type check instead of equals  |
 | Oct 7th 2024  | Add paragraph about using `unapply` instead of equals     |
 | Dec 3rd 2024  | Change the approach to a magic `CanEqual` instance        |
-| Jan 3rd 2025  | Undo previous change, "magic `CanEqual`" has no benefits   |
-| Mar 6th 2025  | Add examples   |
+| Jan 3rd 2025  | Undo previous change, "magic `CanEqual`" has no benefits  |
+| Mar 6th 2025  | Add examples                                              |
+| Apr 11th 2026 | Incorporate feedback                                      |
 ## Summary
 
 This proposal aims to make the `strictEquality` feature easier to adopt by making pattern matching
@@ -208,11 +209,24 @@ This change creates no new compatibility issues and improves the compatibility o
    to test for equality with these – the only thing that is equal to a singleton is the
    singleton itself, and hence we could in principle use reference equality for these cases
    (the fact that we don't is a mere concession to backward compatibility).
-## Feedback
+## Feedback …
 
 - https://contributors.scala-lang.org/t/feedback-thread-for-strictequalitypatternmatching-new-in-3-8/7379
 - https://users.scala-lang.org/t/your-experience-with-strictequalitypatternmatching-new-in-3-8/12208
 - https://contributors.scala-lang.org/t/pre-sip-relaxed-strictequality-for-and/7356
+- https://www.reddit.com/r/scala/comments/1r0ppxb/strictequalitypatternmatching_does_it_work_for_you/
+
+The Feedback for the first iteration of this feature has been positive. If anything, the people who tried this wanted more of it. Specifically:
+ - For the cases specified above (case objects and singleton enum cases) it was suggested to get rid of the `CanEqual` requirement for `==` comparisons as well
+   - I personally don't see anything wrong with this idea, but I would consider it a distinct feature that should be discussed separately
+ - It was suggested to also make this feature work with `object`s that lack a `case` modifier
+   - I agree with this. It was originally specified only for `case object`s because `sealed trait`/`case class`/`case object` is the traditional encoding of ADTs in Scala, but limiting it to objects with `case` ultimately serves no discernable purpose.
+
+### … and the conclusions I draw from it
+Given the positive feedback, I would like to propose to the SIP committee:
+ - slightly relax the conditions when this feature applies: a `case` modifier for `object`s should not be required
+ - promote this feature to stable (i. e. make it the default behaviour when `strictEquality` is enabled) in either 3.9 or 3.10, at the committee's discretion
+ 
 
 ## Related Work
  - https://contributors.scala-lang.org/t/pre-sip-better-strictequality-support-in-pattern-matching/6781
