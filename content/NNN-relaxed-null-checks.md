@@ -26,13 +26,18 @@ This affects the `==` and `!=` operators as well as `case null` clauses in patte
 
 ## Motivation
 
-When `strictEquality` is enabled, there is currently no good way to perform a null check in certain cases. When `x` has type `Int | Null`, then `==` cannot be used to perform a `null` check because a `CanEqual` instance is not available, `eq` cannot be used either because that is only available on `AnyRef`, which is not a supertype of `Int | Null`.
+With the explicit-nulls feature, Scala currently supports a form of flow typing where the type of a nullable variable is refined to a non-nullable type when a suitable non-null check is performed. However this interacts poorly with `strictEquality`, because there is currently no good way to perform a null check for certain types when `strictEquality` is enabled. The type `Int | Null` cannot be compared to `null` using `==` or `!=` because a `CanEqual[Int | Null, Null]` instance is not available. `eq` cannot be used either because that is only available on `AnyRef`, which is not a supertype of `Int | Null`.
 The currently discussed proposal to make `Null` a subtype of `AnyVal` makes `eq` an even less viable alternative.
 
 ```scala
 val x: Int | Null = ...
 if x != null then // Error: Values of types Int | Null and Null cannot be compared
   val y: Int = x // would be safe
+
+x match
+  case null => () // currently doesn't compile
+  case _ =>
+    val y: Int = x // would be safe
 ```
 
 ## Proposed solution
@@ -45,11 +50,11 @@ No compatibility implications because it only allows things that are already all
 
 ### Feature Interactions
 
-The `explicit-nulls` feature will work better when `strictEquality` is enabled. Scala implements a form of flow typing: when `x` has type `Int | Null`, its type changes to `Int` inside an `if x != null` block. It is currently impossible to make use of this feature when `strictEquality` is enabled because there's no way to make the null check compile for types like `Int | Null`.
+As described above, this feature corrects an unfortunate interaction between `explicit-nulls` and `strictEquality`.  Scala implements a form of flow typing: when `x` has type `Int | Null`, its type changes to `Int` inside an `if x != null` block. It is currently difficult to make use of this feature when `strictEquality` is enabled because an explicit `CanEqual` instance needs to be provided to make the null check compile for types like `Int | Null`.
 
 ## Alternatives
 
-It was proposed to add a universally-available `CanEqual[A | Null, Null]` instance. However there is a downside to this: due to contravariance, such an instance allows everything to be compared to `null` because `A` is a subtype of `A | Null`. A counter-argument is that this adds more special cases to the compiler. However `null` checks are already special in the language due to the flow typing behaviour described above, Therefore I think of this proposal as a mere addendum to this already-special behaviour.
+It was proposed to add a universally-available `CanEqual[A | Null, Null]` instance. However there is a downside to this: due to contravariance, such an instance allows everything to be compared to `null` because `A` is a subtype of `A | Null`. This would adversely affect the goal of `strictEquality` to prevent nonsensical comparisons.
 
 ## Related work
 
@@ -62,3 +67,5 @@ It was proposed to add a universally-available `CanEqual[A | Null, Null]` instan
 ## FAQ
  - What about expressions other than `null` that have type `Null`? E. g. `val n: Null = null`
    - These aren't special-cased by `explicit-nulls` either, so let's stick with that.
+ - Is it really worth adding another special case to the compiler for this?
+   - Comparing to `null` is already a special case in the compiler as it enables the flow typing behaviour described above. Therefore, this SIP shouldn't be thought of as a new special case; rather, it is the completion of an already existing special behaviour.
