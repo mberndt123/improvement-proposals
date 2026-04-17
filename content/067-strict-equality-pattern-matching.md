@@ -225,6 +225,7 @@ The Feedback for the first iteration of this feature has been positive. If anyth
 ### … and the conclusions I draw from it
 Given the positive feedback, I would like to propose to the SIP committee:
  - slightly relax the conditions when this feature applies: a `case` modifier for `object`s should not be required
+   - I've implemented the change here: https://github.com/scala/scala3/pull/25850
  - promote this feature to stable (i. e. make it the default behaviour when `strictEquality` is enabled) in either 3.9 or 3.10, at the committee's discretion
  
 
