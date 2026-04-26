@@ -1,12 +1,12 @@
 ---
 layout: sip
-number: NN
+number: 79
 permalink: /sips/:number.html
 redirect_from:
   - /sips/:title.html
   - /sips/:number
-stage: pre-sip
-status: submitted
+stage: design
+status: under-review
 presip-thread: https://contributors.scala-lang.org/t/strictequality-with-explicit-nulls-do-not-work-well-together/7050
 title: Relaxed Null checks under `strictEquality`
 ---
