@@ -233,3 +233,5 @@ Given the positive feedback, I would like to propose to the SIP committee:
  - https://contributors.scala-lang.org/t/pre-sip-better-strictequality-support-in-pattern-matching/6781
  - https://contributors.scala-lang.org/t/how-to-improve-strictequality/6722
  - https://contributors.scala-lang.org/t/enumeration-does-not-derive-canequal-for-strictequality/5280
+ - Implementation: https://github.com/scala/scala3/pull/23803
+ - Implementation (stage 2) https://github.com/scala/scala3/pull/25850
