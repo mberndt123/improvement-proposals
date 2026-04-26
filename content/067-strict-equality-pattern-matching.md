@@ -119,7 +119,7 @@ def foo(vector: Vector[Int]) =
     case Nil => 0
 ```
 This example is not affected by this SIP: `Vector[Int]` is not a supertype of `Nil.type`. `CanEqual` is still required.
-(Note: This code produces an unreachable code warning, but the branch is nevertheless taken (compiler bug))
+(Note: This code produces an unreachable code warning, but the branch is nevertheless taken ([compiler bug #25933](https://github.com/scala/scala3/issues/25933))).
 
 #### Example 2
 ```scala
