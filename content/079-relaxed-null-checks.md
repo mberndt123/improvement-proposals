@@ -30,6 +30,7 @@ With the explicit-nulls feature, Scala currently supports a form of flow typing 
 The currently discussed proposal to make `Null` a subtype of `AnyVal` makes `eq` an even less viable alternative.
 
 ```scala
+//> using option -Yexplicit-nulls -language:strictEquality
 val x: Int | Null = ...
 if x != null then // Error: Values of types Int | Null and Null cannot be compared
   val y: Int = x // would be safe
