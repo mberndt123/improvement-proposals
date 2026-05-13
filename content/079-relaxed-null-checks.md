@@ -43,7 +43,7 @@ x match
 
 ## Proposed solution
 
-Do not require a `CanEqual` instance for the `==` and `!=` operators when one operand is `null` and the other operand's type is a supertype of `Null`. Similarly, don't require a `CanEqual` instance during pattern matching when the pattern is `null` and the scrutinee's type is a supertype of `Null`.
+Do not require a `CanEqual` instance for the `==` and `!=` operators when either operand is `null` and the other operand's type is a supertype of `Null`. Similarly, don't require a `CanEqual` instance during pattern matching when the pattern is `null` and the scrutinee's type is a supertype of `Null`.
 
 ### Compatibility
 
