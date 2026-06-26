@@ -5,8 +5,8 @@ permalink: /sips/:number.html
 redirect_from:
   - /sips/:number
   - /sips/:title.html
-stage: implementation
-status: under-review
+stage: completed
+status: accepted
 presip-thread: https://contributors.scala-lang.org/t/pre-sip-better-strictequality-support-in-pattern-matching/6781
 title: SIP-67 - Strict-Equality pattern matching
 ---
@@ -34,7 +34,7 @@ does not (or cannot) have a `derives CanEqual` clause.
 ## Motivation
 
 The `strictEquality` feature is important to improve type safety. However due to the way that pattern matching in
-Scala works, it requires a `CanEqual` instance when matching against a `case object` or a singleton `enum` `case`.
+Scala works, it requires a `CanEqual` instance when matching against an `object` or a singleton `enum` `case`.
 This is problematic because it means that pattern matching doesn't work in the expected way for types where a
 `derives CanEqual` clause is not desired.
 By contrast, in languages like Haskell, an `Eq` instance is never required to perform pattern matching. It also
@@ -103,7 +103,7 @@ For these reasons the current state of affairs is unsatisfactory and needs to im
 ### Specification
 
 The proposed solution is to not require a `CanEqual` instance during pattern matching when:
- - the pattern is a `case object` that extends the scrutinee's type, or
+ - the pattern is an `object` that extends the scrutinee's type, or
  - the pattern is an `enum case` without a parameter list (e. g. `Nat.Zero`) and the scrutinee has that `enum` type (or a supertype thereof)
 
 The semantics of pattern matching against a constant are otherwise unchanged, that is, `equals` will continue
@@ -140,7 +140,7 @@ def foo(i: Int) =
   i match
     case TheAnswer => 0
 ```
-This example is not affected by this SIP: `TheAnswer` is not a `case object` or `enum case`, `CanEqual` is required like before.
+This example is not affected by this SIP: `TheAnswer` is not an `object` or `enum case`, `CanEqual` is required like before.
 
 #### Example 4
 ```scala
@@ -221,6 +221,7 @@ The Feedback for the first iteration of this feature has been positive. If anyth
    - I personally don't see anything wrong with this idea, but I would consider it a distinct feature that should be discussed separately
  - It was suggested to also make this feature work with `object`s that lack a `case` modifier
    - I agree with this. It was originally specified only for `case object`s because `sealed trait`/`case class`/`case object` is the traditional encoding of ADTs in Scala, but limiting it to objects with `case` ultimately serves no discernable purpose.
+   - after positive feedback from the committee, I've now modified the specification accordingly
 
 ### … and the conclusions I draw from it
 Given the positive feedback, I would like to propose to the SIP committee:
