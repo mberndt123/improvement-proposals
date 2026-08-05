@@ -6,9 +6,10 @@ redirect_from:
   - /sips/:number
   - /sips/:title.html
 stage: completed
-status: accepted
+status: shipped
+shipped: 3.10.0
 presip-thread: https://contributors.scala-lang.org/t/pre-sip-better-strictequality-support-in-pattern-matching/6781
-title: SIP-67 - Strict-Equality pattern matching
+title: Strict-Equality pattern matching
 ---
 
 **By: Matthias Berndt**
