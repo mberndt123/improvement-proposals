@@ -100,7 +100,8 @@ import scala.util.boundary, boundary.break
 boundary:
   while true do
     val line = in.readLine()
-    if line == null then break()
+    if line == null then
+      break()
     process(line)
 ```
 
@@ -137,8 +138,43 @@ in order to be tested and then used in the branches:
 if
   val i = s.indexOf(' ')
   i >= 0
-then s.substring(0, i)
-else s
+then
+  s.substring(0, i)
+else
+  s
+```
+
+This also applies to `else if`, which is particularly useful when a value is needed only
+in the `else` branch of an `if` chain. Today, such a value forces an extra level of
+nesting:
+
+```scala
+if cache.contains(key) then
+  cache(key)
+else
+  val parsed = parse(raw)
+  if parsed.isEmpty then
+    default
+  else if parsed.size > limit then
+    parsed.take(limit)
+  else
+    parsed
+```
+
+With this proposal, the chain stays flat:
+
+```scala
+if cache.contains(key) then
+  cache(key)
+else if
+  val parsed = parse(raw)
+  parsed.isEmpty
+then
+  default
+else if parsed.size > limit then
+  parsed.take(limit)
+else
+  parsed
 ```
 
 Both parts of the proposal also mirror what `for` comprehensions already do: definitions
@@ -167,9 +203,12 @@ do
 if
   val remaining = budget - spent
   remaining < 0
-then reject(s"over budget by ${-remaining}")
-else if remaining < reserve then warn(s"only $remaining left")
-else approve(remaining)
+then
+  reject(s"over budget by ${-remaining}")
+else if remaining < reserve then
+  warn(s"only $remaining left")
+else
+  approve(remaining)
 ```
 
 This proposal does not change the meaning of the parenthesized syntax inherited from
